@@ -582,11 +582,18 @@ function startTest() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        function resetTest() {
-            document.getElementById('results-dashboard').classList.add('hidden');
-            document.getElementById('next-text-btn').classList.remove('hidden');
-            document.getElementById('timer-box').classList.remove('hidden');
-            initTest();
+function resetTest() {
+    document.getElementById('results-dashboard').classList.add('hidden');
+    document.getElementById('next-text-btn').classList.remove('hidden');
+    document.getElementById('timer-box').classList.remove('hidden');
+
+    // Show the start screen again
+    document.getElementById('start-screen').classList.remove('hidden');
+
+    // Stop any running timers
+    clearInterval(timerInterval);
+    clearInterval(totalTimerInterval);
+}
         }
 
         function escapeHtml(text) {
