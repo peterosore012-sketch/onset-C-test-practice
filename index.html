@@ -371,7 +371,13 @@
         let userAnswers = {}; // Store answers: { textIdx: { gapIdx: val } }
         let totalElapsedSeconds = 0;
         let totalTimerInterval;
+function startTest() {
+    // Hide the start screen
+    document.getElementById('start-screen').classList.add('hidden');
 
+    // Start the test
+    initTest();
+}
         function initTest() {
             currentTextIndex = 0;
             userAnswers = {};
