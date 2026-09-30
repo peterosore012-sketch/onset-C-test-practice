@@ -1,0 +1,565 @@
+I'll prepare your **Daily ONSET German C-Test** in advance so it's ready for you by 9:00 AM daily.
+
+Here is the updated code where each of the 8 texts now features its own dedicated **4-minute timer** (totaling 32 minutes across all 8 texts), strictly adhering to the standard onSET testing format.
+
+```html:onset_ctest_practice.html
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>onSET Deutsch C-Test Simulation (4 Min. pro Text)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gap-input {
+            width: 4rem;
+            text-align: center;
+            font-weight: 600;
+            border-bottom: 2px solid #3b82f6;
+            background-color: #f8fafc;
+            transition: all 0.2s ease;
+        }
+        .gap-input:focus {
+            outline: none;
+            border-bottom-color: #2563eb;
+            background-color: #eff6ff;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+        }
+        .correct-input {
+            border-bottom-color: #22c55e !important;
+            background-color: #f0fdf4 !important;
+            color: #15803d;
+        }
+        .incorrect-input {
+            border-bottom-color: #ef4444 !important;
+            background-color: #fef2f2 !important;
+            color: #b91c1c;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col justify-between">
+
+    <!-- Sticky Header with Progress & Active Timer -->
+    <header class="sticky top-0 z-50 bg-white shadow-md border-b border-slate-200 px-4 py-3">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-blue-600"></i>
+                    onSET C-Test Simulation
+                </h1>
+                <p id="text-progress-indicator" class="text-xs text-slate-500 hidden sm:block">Text 1 von 8 | 4 Minuten pro Text</p>
+            </div>
+            <div id="timer-box" class="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg">
+                <i class="fa-regular fa-clock text-blue-600 text-lg"></i>
+                <span id="timer-display" class="font-mono text-xl font-bold text-blue-700">04:00</span>
+            </div>
+            <button id="next-text-btn" onclick="nextTextOrSubmit()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm shadow transition flex items-center gap-1">
+                <span id="btn-text">Nächster Text</span> <i class="fa-solid fa-arrow-right text-xs"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-4xl mx-auto px-4 py-6 w-full flex-grow">
+        <!-- Exam Info Banner -->
+        <div id="info-banner" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex items-start gap-3">
+            <i class="fa-solid fa-circle-info text-blue-500 text-xl mt-0.5"></i>
+            <div class="text-sm text-slate-600">
+                <strong class="text-slate-800">C-Test Modus (4 Min. pro Text):</strong> Vervollständigen Sie die zweite Hälfte der Wörter. Nach Ablauf der 4 Minuten schaltet der Test automatisch zum nächsten Text weiter!
+            </div>
+        </div>
+
+        <!-- Result Overview Dashboard (Hidden initially) -->
+        <div id="results-dashboard" class="hidden bg-white p-6 rounded-2xl shadow-md border border-slate-200 mb-8 transition-all">
+            <div class="text-center pb-6 border-b border-slate-100">
+                <h2 class="text-2xl font-bold text-slate-800 mb-1">Testergebnis & Auswertung</h2>
+                <p class="text-sm text-slate-500">Ihre Leistung im Gesamt-Test (8 Texte)</p>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 my-6 text-center">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <span class="block text-xs uppercase font-semibold text-slate-400">Gesamtpunkte</span>
+                    <span id="res-score" class="text-3xl font-extrabold text-blue-600">0 / 160</span>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <span class="block text-xs uppercase font-semibold text-slate-400">Prozent</span>
+                    <span id="res-percentage" class="text-3xl font-extrabold text-indigo-600">0%</span>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <span class="block text-xs uppercase font-semibold text-slate-400">Gesamtzeit</span>
+                    <span id="res-time" class="text-3xl font-extrabold text-emerald-600">00:00</span>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <span class="block text-xs uppercase font-semibold text-slate-400">Prognose Level</span>
+                    <span id="res-level" class="text-3xl font-extrabold text-amber-500">-</span>
+                </div>
+            </div>
+
+            <div id="res-feedback" class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg text-sm text-blue-900 mb-4">
+                <!-- Dynamic feedback -->
+            </div>
+
+            <div class="flex justify-center mt-4">
+                <button onclick="resetTest()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-xl shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-rotate-right"></i> Test von vorne starten
+                </button>
+            </div>
+        </div>
+
+        <!-- Active C-Test Text Card -->
+        <div id="text-card-container">
+            <!-- Rendered dynamically text by text -->
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+        onSET Deutsch Vorbereitung B2/C1 &bull; Viel Erfolg am 6. Oktober!
+    </footer>
+
+    <script>
+        const textsData = [
+            {
+                title: "Text 1: Künstliche Intelligenz in der Medizin",
+                passage: [
+                    { t: "Die künstliche Intelligenz (KI) veränd" }, { g: "ert", c: "ert" },
+                    { t: " die Med" }, { g: "izin", c: "izin" },
+                    { t: " grundlegend. In vie" }, { g: "len", c: "len" },
+                    { t: " Krankenhäusern kom" }, { g: "mt", c: "mt" },
+                    { t: " moderne Soft" }, { g: "ware", c: "ware" },
+                    { t: " bereits b" }, { g: "ei", c: "ei" },
+                    { t: " der Diag" }, { g: "nose", c: "nose" },
+                    { t: " von Krank" }, { g: "heiten", c: "heiten" },
+                    { t: " zum Eins" }, { g: "atz", c: "atz" },
+                    { t: ". Speziell in d" }, { g: "er", c: "er" },
+                    { t: " Radiologie kön" }, { g: "nen", c: "nen" },
+                    { t: " Algorithmen Tum" }, { g: "oren", c: "oren" },
+                    { t: " oft schnel" }, { g: "ler", c: "ler" },
+                    { t: " erkennen a" }, { g: "ls", c: "ls" },
+                    { t: " menschliche Ärz" }, { g: "te", c: "te" },
+                    { t: ". Dennoch ble" }, { g: "ibt", c: "ibt" },
+                    { t: " die ulti" }, { g: "mative", c: "mative" },
+                    { t: " Verantwortung im" }, { g: "mer", c: "mer" },
+                    { t: " beim Fachp" }, { g: "ersonal", c: "ersonal" },
+                    { t: ", da Maschinen ke" }, { g: "ine", c: "ine" },
+                    { t: " Empathie besitzen." }
+                ]
+            },
+            {
+                title: "Text 2: Der Wandel der Arbeitswelt",
+                passage: [
+                    { t: "Homeoffice und flex" }, { g: "ible", c: "ible" },
+                    { t: " Arbeitszeiten geh" }, { g: "ören", c: "ören" },
+                    { t: " für man" }, { g: "che", c: "che" },
+                    { t: " Beschäftigte inzwi" }, { g: "schen", c: "schen" },
+                    { t: " zum All" }, { g: "tag", c: "tag" },
+                    { t: ". Die Digita" }, { g: "lisierung", c: "lisierung" },
+                    { t: " hat di" }, { g: "e", c: "e" },
+                    { t: " Art un" }, { g: "d", c: "d" },
+                    { t: " Weise, w" }, { g: "ie", c: "ie" },
+                    { t: " wir arbe" }, { g: "iten", c: "iten" },
+                    { t: ", nachhaltig verä" }, { g: "ndert", c: "ndert" },
+                    { t: ". Viele Unte" }, { g: "rnehmen", c: "rnehmen" },
+                    { t: " berichten v" }, { g: "on", c: "on" },
+                    { t: " einer höh" }, { g: "eren", c: "eren" },
+                    { t: " Zufriedenheit ih" }, { g: "rer", c: "rer" },
+                    { t: " Mitarbeiter. Aller" }, { g: "dings", c: "dings" },
+                    { t: " war" }, { g: "nen", c: "nen" },
+                    { t: " Experten a" }, { g: "uch", c: "uch" },
+                    { t: " vor d" }, { g: "er", c: "er" },
+                    { t: " Verwachsung von Ber" }, { g: "uf", c: "uf" },
+                    { t: " und Privatleben." }
+                ]
+            },
+            {
+                title: "Text 3: Klimawandel und erneuerbare Energien",
+                passage: [
+                    { t: "Um den welt" }, { g: "weiten", c: "weiten" },
+                    { t: " Klimawandel zu bre" }, { g: "msen", c: "msen" },
+                    { t: ", müssen me" }, { g: "hr", c: "hr" },
+                    { t: " erneuerbare Ener" }, { g: "gien", c: "gien" },
+                    { t: " genutzt wer" }, { g: "den", c: "den" },
+                    { t: ". Solar- un" }, { g: "d", c: "d" },
+                    { t: " Windkraft spi" }, { g: "elen", c: "elen" },
+                    { t: " dabei ei" }, { g: "ne", c: "ne" },
+                    { t: " zentrale Ro" }, { g: "lle", c: "lle" },
+                    { t: ". Viele Staa" }, { g: "ten", c: "ten" },
+                    { t: " investieren mas" }, { g: "siv", c: "siv" },
+                    { t: " in den Aus" }, { g: "bau", c: "bau" },
+                    { t: " umweltfreundlicher Tech" }, { g: "nologien", c: "nologien" },
+                    { t: ". Doch d" }, { g: "er", c: "er" },
+                    { t: " Wandel erfo" }, { g: "rdert", c: "rdert" },
+                    { t: " hohe Fin" }, { g: "anzmittel", c: "anzmittel" },
+                    { t: " und poli" }, { g: "tischen", c: "tischen" },
+                    { t: " Willen, u" }, { g: "m", c: "m" },
+                    { t: " das 1,5-Grad-Zi" }, { g: "el", c: "el" },
+                    { t: " noch zu err" }, { g: "eichen", c: "eichen" },
+                    { t: "." }
+                ]
+            },
+            {
+                title: "Text 4: Mehrsprachigkeit bei Kindern",
+                passage: [
+                    { t: "Kinder, d" }, { g: "ie", c: "ie" },
+                    { t: " mehrsprachig aufw" }, { g: "achsen", c: "achsen" },
+                    { t: ", profitieren in vi" }, { g: "eler", c: "eler" },
+                    { t: " Hinsicht. Ih" }, { g: "r", c: "r" },
+                    { t: " Gehirn le" }, { g: "ernt", c: "ernt" },
+                    { t: " früh, zwis" }, { g: "chen", c: "chen" },
+                    { t: " verschiedenen Spra" }, { g: "chsystemen", c: "chsystemen" },
+                    { t: " zu wech" }, { g: "seln", c: "seln" },
+                    { t: ". Das fö" }, { g: "rdert", c: "rdert" },
+                    { t: " nicht n" }, { g: "ur", c: "ur" },
+                    { t: " die kogn" }, { g: "itiven", c: "itiven" },
+                    { t: " Fähigkeiten, son" }, { g: "dern", c: "dern" },
+                    { t: " auch d" }, { g: "as", c: "as" },
+                    { t: " Sprachverständnis im Allg" }, { g: "emeinen", c: "emeinen" },
+                    { t: ". Zwar fän" }, { g: "gen", c: "gen" },
+                    { t: " manche Kin" }, { g: "der", c: "der" },
+                    { t: " etwas spä" }, { g: "ter", c: "ter" },
+                    { t: " zu spr" }, { g: "echen", c: "echen" },
+                    { t: " an, ho" }, { g: "len", c: "len" },
+                    { t: " diesen Rück" }, { g: "stand", c: "stand" },
+                    { t: " aber schnell wieder auf." }
+                ]
+            },
+            {
+                title: "Text 5: Die Bedeutung des Lesens",
+                passage: [
+                    { t: "Das Lesen v" }, { g: "on", c: "on" },
+                    { t: " Büchern verl" }, { g: "iert", c: "iert" },
+                    { t: " im zei" }, { g: "tgenössischen", c: "tgenössischen" },
+                    { t: " Zeitalter d" }, { g: "er", c: "er" },
+                    { t: " digitalen Med" }, { g: "ien", c: "ien" },
+                    { t: " keineswegs a" }, { g: "n", c: "n" },
+                    { t: " Bedeutung. Stud" }, { g: "ien", c: "ien" },
+                    { t: " belegen, da" }, { g: "ss", c: "ss" },
+                    { t: " regelmäßiges Le" }, { g: "sen", c: "sen" },
+                    { t: " die Konze" }, { g: "ntration", c: "ntration" },
+                    { t: " stärkt un" }, { g: "d", c: "d" },
+                    { t: " den Wort" }, { g: "schatz", c: "schatz" },
+                    { t: " erheblich erwe" }, { g: "itert", c: "itert" },
+                    { t: ". Darüber hir" }, { g: "aus", c: "aus" },
+                    { t: " schult e" }, { g: "s", c: "s" },
+                    { t: " das empa" }, { g: "thische", c: "thische" },
+                    { t: " Denken, da ma" }, { g: "n", c: "n" },
+                    { t: " sich in die Per" }, { g: "spektive", c: "spektive" },
+                    { t: " anderer Men" }, { g: "schen", c: "schen" },
+                    { t: " hineinversetzen k" }, { g: "ann", c: "ann" },
+                    { t: "." }
+                ]
+            },
+            {
+                title: "Text 6: Urbanes Gärtnern (Urban Gardening)",
+                passage: [
+                    { t: "In immer me" }, { g: "hr", c: "hr" },
+                    { t: " Großstädten entst" }, { g: "ehen", c: "ehen" },
+                    { t: " grüne Oa" }, { g: "sen", c: "sen" },
+                    { t: ". Beim sogen" }, { g: "annten", c: "annten" },
+                    { t: " Urban Gar" }, { g: "dening", c: "dening" },
+                    { t: " pflanzen Bür" }, { g: "ger", c: "ger" },
+                    { t: " gemeinsam Gem" }, { g: "üse", c: "üse" },
+                    { t: " und Ob" }, { g: "st", c: "st" },
+                    { t: " auf ungen" }, { g: "utzten", c: "utzten" },
+                    { t: " städtischen Flä" }, { g: "chen", c: "chen" },
+                    { t: " an. Di" }, { g: "ese", c: "ese" },
+                    { t: " Projekte för" }, { g: "dern", c: "dern" },
+                    { t: " nicht nu" }, { g: "r", c: "r" },
+                    { t: " das Bewu" }, { g: "sstsein", c: "sstsein" },
+                    { t: " für frische Lebensm" }, { g: "ittel", c: "ittel" },
+                    { t: ", sondern stä" }, { g: "rken", c: "rken" },
+                    { t: " auch d" }, { g: "as", c: "as" },
+                    { t: " Gemeinschaftsgefühl in d" }, { g: "er", c: "er" },
+                    { t: " Nachbarschaft un" }, { g: "d", c: "d" },
+                    { t: " machen so Stä" }, { g: "dte", c: "dte" },
+                    { t: " lebenswerter." }
+                ]
+            },
+            {
+                title: "Text 7: Ernährung und Gesundheit",
+                passage: [
+                    { t: "Eine ausgew" }, { g: "ogene", c: "ogene" },
+                    { t: " Ernährung i" }, { g: "st", c: "st" },
+                    { t: " ein wesent" }, { g: "licher", c: "licher" },
+                    { t: " Baustein f" }, { g: "ür", c: "ür" },
+                    { t: " ein gesu" }, { g: "ndes", c: "ndes" },
+                    { t: " Leben. Mediz" }, { g: "iner", c: "iner" },
+                    { t: " raten da" }, { g: "zu", c: "zu" },
+                    { t: ", möglichst we" }, { g: "nig", c: "nig" },
+                    { t: " verarbeitete Lebensm" }, { g: "ittel", c: "ittel" },
+                    { t: " zu konsu" }, { g: "mieren", c: "mieren" },
+                    { t: ". Stattdessen sol" }, { g: "lten", c: "lten" },
+                    { t: " viel Fr" }, { g: "ucht", c: "ucht" },
+                    { t: ", Gemüse un" }, { g: "d", c: "d" },
+                    { t: " Vollkornprodukte au" }, { g: "f", c: "f" },
+                    { t: " dem Spei" }, { g: "seplan", c: "seplan" },
+                    { t: " stehen. Wer zud" }, { g: "em", c: "em" },
+                    { t: " ausreichend Was" }, { g: "ser", c: "ser" },
+                    { t: " trinkt, ble" }, { g: "ibt", c: "ibt" },
+                    { t: " langfristig leis" }, { g: "tungsfähig", c: "tungsfähig" },
+                    { t: " und vit" }, { g: "al", c: "al" },
+                    { t: "." }
+                ]
+            },
+            {
+                title: "Text 8: Das Phänomen Tourismus",
+                passage: [
+                    { t: "Der weltweite Tour" }, { g: "ismus", c: "ismus" },
+                    { t: " hat s" }, { g: "ich", c: "ich" },
+                    { t: " in d" }, { g: "en", c: "en" },
+                    { t: " letzten Jahrze" }, { g: "hnten", c: "hnten" },
+                    { t: " rasant entwi" }, { g: "ckelt", c: "ckelt" },
+                    { t: ". Reisen i" }, { g: "st", c: "st" },
+                    { t: " für vi" }, { g: "ele", c: "ele" },
+                    { t: " Menschen zu e" }, { g: "iner", c: "iner" },
+                    { t: " Selbstverständlichkeit gew" }, { g: "orden", c: "orden" },
+                    { t: ". Allerdings bri" }, { g: "ngt", c: "ngt" },
+                    { t: " der Massentourismus au" }, { g: "ch", c: "ch" },
+                    { t: " Probleme m" }, { g: "it", c: "it" },
+                    { t: " sich. Beliebte Urla" }, { g: "ubsorte", c: "ubsorte" },
+                    { t: " leiden un" }, { g: "ter", c: "ter" },
+                    { t: " Überlastung, ho" }, { g: "hen", c: "hen" },
+                    { t: " Müllmengen und stei" }, { g: "genden", c: "genden" },
+                    { t: " Mieten f" }, { g: "ür", c: "ür" },
+                    { t: " Einheimische. N" }, { g: "un", c: "un" },
+                    { t: " wird na" }, { g: "ch", c: "ch" },
+                    { t: " nachhaltigen Alternativen ges" }, { g: "ucht", c: "ucht" },
+                    { t: "." }
+                ]
+            }
+        ];
+
+        let currentTextIndex = 0;
+        let timerInterval;
+        let timeRemaining = 4 * 60; // 4 minutes per text
+        let userAnswers = {}; // Store answers: { textIdx: { gapIdx: val } }
+        let totalElapsedSeconds = 0;
+        let totalTimerInterval;
+
+        function initTest() {
+            currentTextIndex = 0;
+            userAnswers = {};
+            totalElapsedSeconds = 0;
+
+            clearInterval(totalTimerInterval);
+            totalTimerInterval = setInterval(() => {
+                totalElapsedSeconds++;
+            }, 1000);
+
+            renderTextCard(currentTextIndex);
+        }
+
+        function renderTextCard(idx) {
+            const container = document.getElementById('text-card-container');
+            const textObj = textsData[idx];
+
+            document.getElementById('text-progress-indicator').textContent = `Text ${idx + 1} von 8 | 4 Minuten pro Text`;
+
+            if (idx === textsData.length - 1) {
+                document.getElementById('btn-text').textContent = "Test Abschließen";
+            } else {
+                document.getElementById('btn-text').textContent = "Nächster Text";
+            }
+
+            let html = `<div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">`;
+            html += `<h2 class="text-xl font-bold text-slate-800 mb-4 border-b border-slate-100 pb-3">${textObj.title}</h2>`;
+            html += `<div class="leading-relaxed text-slate-700 text-base md:text-lg">`;
+
+            let gapNum = 0;
+            textObj.passage.forEach(part => {
+                if (part.t) html += `<span>${escapeHtml(part.t)}</span>`;
+                if (part.g) {
+                    gapNum++;
+                    const key = `t${idx}_g${gapNum}`;
+                    const savedVal = userAnswers[key] || "";
+                    const maxLen = part.c.length + 1;
+
+                    html += `<span class="inline-block mx-0.5">
+                        <input type="text" 
+                               id="gap-${gapNum}" 
+                               data-correct="${escapeHtml(part.c)}" 
+                               data-key="${key}"
+                               value="${savedVal}"
+                               maxlength="${maxLen}" 
+                               autocomplete="off" 
+                               spellcheck="false" 
+                               class="gap-input text-blue-800 font-semibold focus:ring-1 focus:ring-blue-400 rounded px-1 py-0.5" 
+                        />
+                        <span id="solution-${gapNum}" class="hidden text-xs font-bold ml-1"></span>
+                    </span>`;
+                }
+            });
+
+            html += `</div></div>`;
+            container.innerHTML = html;
+
+            startTextTimer();
+        }
+
+        function saveCurrentAnswers() {
+            const inputs = document.querySelectorAll('.gap-input');
+            inputs.forEach(input => {
+                const key = input.getAttribute('data-key');
+                userAnswers[key] = input.value.trim();
+            });
+        }
+
+        function startTextTimer() {
+            clearInterval(timerInterval);
+            timeRemaining = 4 * 60; // Reset to 4 minutes
+            updateTimerDisplay();
+
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+
+                if (timeRemaining <= 0) {
+                    clearInterval(timerInterval);
+                    saveCurrentAnswers();
+                    if (currentTextIndex < textsData.length - 1) {
+                        alert(`Zeit für Text ${currentTextIndex + 1} abgelaufen! Weiter zum nächsten Text.`);
+                        currentTextIndex++;
+                        renderTextCard(currentTextIndex);
+                    } else {
+                        alert("Die Zeit für den letzten Text ist abgelaufen! Test wird ausgewertet.");
+                        finalizeTest();
+                    }
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            const display = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            const timerEl = document.getElementById('timer-display');
+            timerEl.textContent = display;
+
+            if (timeRemaining < 60) {
+                timerEl.classList.remove('text-blue-700');
+                timerEl.classList.add('text-red-600', 'animate-pulse');
+            } else {
+                timerEl.classList.remove('text-red-600', 'animate-pulse');
+                timerEl.classList.add('text-blue-700');
+            }
+        }
+
+        function nextTextOrSubmit() {
+            saveCurrentAnswers();
+            if (currentTextIndex < textsData.length - 1) {
+                currentTextIndex++;
+                renderTextCard(currentTextIndex);
+            } else {
+                if (confirm("Möchten Sie den gesamten C-Test jetzt abgeben und auswerten?")) {
+                    finalizeTest();
+                }
+            }
+        }
+
+        function finalizeTest() {
+            clearInterval(timerInterval);
+            clearInterval(totalTimerInterval);
+
+            // Render all 8 texts together to show complete results
+            const container = document.getElementById('text-card-container');
+            container.innerHTML = '';
+
+            let totalCorrect = 0;
+            let totalGaps = 160;
+
+            textsData.forEach((textObj, tIdx) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6';
+
+                let html = `<h2 class="text-xl font-bold text-slate-800 mb-4 border-b border-slate-100 pb-3">${textObj.title}</h2>`;
+                html += `<div class="leading-relaxed text-slate-700 text-base md:text-lg">`;
+
+                let gIdx = 0;
+                textObj.passage.forEach(part => {
+                    if (part.t) html += `<span>${escapeHtml(part.t)}</span>`;
+                    if (part.g) {
+                        gIdx++;
+                        const key = `t${tIdx}_g${gIdx}`;
+                        const userVal = (userAnswers[key] || "").toLowerCase();
+                        const correctVal = part.c.toLowerCase();
+                        const isCorrect = (userVal === correctVal);
+
+                        if (isCorrect) totalCorrect++;
+
+                        const cssClass = isCorrect ? 'correct-input' : 'incorrect-input';
+                        const solutionHtml = !isCorrect ? `<span class="text-xs font-bold text-red-600 ml-1">[${escapeHtml(part.c)}]</span>` : '';
+
+                        html += `<span class="inline-block mx-0.5">
+                            <input type="text" 
+                                   value="${escapeHtml(userAnswers[key] || "")}" 
+                                   disabled 
+                                   class="gap-input ${cssClass} font-semibold rounded px-1 py-0.5" 
+                            />
+                            ${solutionHtml}
+                        </span>`;
+                    }
+                });
+
+                html += `</div>`;
+                card.innerHTML = html;
+                container.appendChild(card);
+            });
+
+            const percentage = Math.round((totalCorrect / totalGaps) * 100);
+            const totalMin = Math.floor(totalElapsedSeconds / 60);
+            const totalSec = totalElapsedSeconds % 60;
+            const timeFormatted = `${totalMin.toString().padStart(2, '0')}:${totalSec.toString().padStart(2, '0')}`;
+
+            let predictedLevel = "< B1";
+            let feedbackText = "";
+
+            if (percentage >= 80) {
+                predictedLevel = "C1";
+                feedbackText = "<strong>Hervorragend!</strong> Sie haben mehr als 80% erreicht. Sie sind perfekt auf die C1-Stufe im onSET vorbereitet!";
+            } else if (percentage >= 60) {
+                predictedLevel = "B2";
+                feedbackText = "<strong>Gutes Ergebnis!</strong> Sie haben das B2-Niveau sicher erreicht. Mit etwas Fokus auf Wortendungen liegt C1 in Ihrer Reichweite!";
+            } else if (percentage >= 40) {
+                predictedLevel = "B1";
+                feedbackText = "<strong>B1 Niveau erreicht!</strong> Konzentrieren Sie sich bis zum 6. Oktober auf Grammatik, Kasus und Adjektivendungen.";
+            } else {
+                predictedLevel = "< B1";
+                feedbackText = "<strong>Mehr Übung erforderlich!</strong> Das Ergebnis liegt noch unter B1. Wiederholen Sie den Test täglich bis zum 6. Oktober!";
+            }
+
+            document.getElementById('res-score').textContent = `${totalCorrect} / ${totalGaps}`;
+            document.getElementById('res-percentage').textContent = `${percentage}%`;
+            document.getElementById('res-time').textContent = timeFormatted;
+            document.getElementById('res-level').textContent = predictedLevel;
+            document.getElementById('res-feedback').innerHTML = feedbackText;
+
+            document.getElementById('results-dashboard').classList.remove('hidden');
+            document.getElementById('next-text-btn').classList.add('hidden');
+            document.getElementById('timer-box').classList.add('hidden');
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetTest() {
+            document.getElementById('results-dashboard').classList.add('hidden');
+            document.getElementById('next-text-btn').classList.remove('hidden');
+            document.getElementById('timer-box').classList.remove('hidden');
+            initTest();
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        window.onload = initTest;
+    </script>
+</body>
+</html>
+
+```
