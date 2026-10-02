@@ -287,16 +287,37 @@ function submitText(auto=false){
  if(currentIndex<testTexts.length-1){currentIndex++;showText()}else finishTest();
 }
 function estimateLevel(rs){
- const total=rs.reduce((a,r)=>a+r.score,0),pct=total/(rs.length*20),by={};
- ["A1","A2","B1","B2","C1"].forEach(l=>{
-   const x=rs.filter(r=>r.level===l);
-   by[l]=x.length?x.reduce((a,r)=>a+r.score,0)/(x.length*20):null;
- });
- // Calibration-ready output. The current browser-only version does NOT claim
- // to implement official onSET/Rasch calibration. Once learner responses and
- // calibrated item parameters are stored in Supabase, this function will be
- // replaced by a real Rasch ability estimate and empirically calibrated cuts.
- return{level:null,by,total,pct,method:"not-yet-calibrated"};
+  const total = rs.reduce((a,r)=>a+r.score,0);
+  const max = rs.reduce((a,r)=>a+r.max,0);
+  const pct = max ? total/max : 0;
+
+  const levels = ["A1","A2","B1","B2","C1"];
+  const by = {};
+
+  levels.forEach(l=>{
+    const x = rs.filter(r=>r.level===l);
+    by[l] = x.length
+      ? x.reduce((a,r)=>a+r.score,0) / x.reduce((a,r)=>a+r.max,0)
+      : null;
+  });
+
+  // Provisional CEFR placement.
+  // Requires at least 70% performance at a level.
+  let level = "A1";
+
+  for(const l of levels){
+    if(by[l] !== null && by[l] >= 0.70){
+      level = l;
+    }
+  }
+
+  return {
+    level,
+    by,
+    total,
+    pct,
+    method:"provisional-cefr"
+  };
 }
 function escapeHtml(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;");}
 
@@ -428,7 +449,7 @@ function saveAssessmentHistory(r,elapsed){
  history.push({
    date:new Date().toISOString(),testDate,testId,total:r.total,
    max:textResults.length*20,percent:Math.round(r.pct*100),
-   by:r.by,elapsed,wrong,categories,itemBankVersion:"phase3c-v1"
+by:r.by,level:r.level,elapsed,wrong,categories,itemBankVersion:"phase3c-v1"
  });
  while(history.length>30) history.shift();
  saveHistory(history);
@@ -478,12 +499,47 @@ function renderDashboard(){
    return `<div class="border rounded-xl p-4 flex flex-wrap items-center justify-between gap-3"><div><b>${escapeHtml(d.toLocaleDateString())}</b><div class="text-sm text-slate-500">${escapeHtml(x.testId)} · ${time}</div></div><div class="text-right"><b class="text-lg">${x.total}/${x.max}</b><div class="text-sm text-slate-500">${x.percent}% · ${x.wrong} wrong</div></div></div>`;
  }).join(""):'<div class="text-slate-500">No full-test history yet.</div>';
 }
+  async function saveResultToSupabase(r, elapsed){
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if(!user){
+    console.log("No logged-in user. Result not saved.");
+    return;
+  }
+
+  const wrong = textResults.reduce(
+    (n,t) => n + t.details.filter(d => !d.ok).length,
+    0
+  );
+
+  const { error } = await supabase
+    .from("test_results")
+    .insert({
+      user_id: user.id,
+      admission_number: localStorage.getItem("admissionNumber") || "",
+      test_date: testDate,
+      test_id: testId,
+      raw_score: r.total,
+      max_score: textResults.length * 20,
+      percentage: Math.round(r.pct * 100),
+      level: r.level,
+      time_seconds: elapsed,
+      wrong_answers: wrong
+    });
+
+  if(error){
+    console.error("Could not save result:", error);
+  }else{
+    console.log("Result saved successfully.");
+  }
+  }
 function finishTest(){
  const r=estimateLevel(textResults),elapsed=Math.round((Date.now()-testStart)/1000);
  saveAssessmentHistory(r,elapsed);
+  saveResultToSupabase(r,elapsed);
  testScreen.classList.add("hidden");resultsScreen.classList.remove("hidden");
  score.textContent=r.total+"/"+(textResults.length*20);
- estimatedLevel.textContent="Calibration pending";
+ estimatedLevel.textContent = r.level;
  totalTime.textContent=Math.floor(elapsed/60)+"m "+elapsed%60+"s";
  levelBreakdown.innerHTML="<h2 class='text-xl font-bold mb-4'>Performance by practice level</h2>"+["A1","A2","B1","B2","C1"].map(l=>{const v=r.by[l]??0;return "<div class='flex items-center gap-3 mb-3'><div class='w-10 font-bold'>"+l+"</div><div class='flex-1 h-3 bg-slate-100 rounded-full overflow-hidden'><div class='h-full bg-blue-600' style='width:"+Math.round(v*100)+"%'></div></div><div class='w-16 text-right'>"+Math.round(v*100)+"%</div></div>"}).join("");
  const wrong=textResults.flatMap(t=>t.details.filter(d=>!d.ok));
