@@ -56,7 +56,9 @@ body{background:#f5f7fb}.gap-input{width:5.5rem;border:0;border-bottom:2px solid
 <div class="bg-slate-50 rounded-2xl p-5"><div class="text-sm text-slate-500">Total time</div><div id="totalTime" class="text-3xl font-extrabold"></div></div>
 </div>
 <div id="levelBreakdown" class="mb-8"></div>
-<div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-900 mb-7"><b>Important:</b> This prototype is not calibrated to the official onSET item bank or official onSET scoring algorithm. The later Rasch calibration phase will use item parameters rather than arbitrary percentage bands.</div>
+<div id="mistakeSummary" class="mb-8"></div>
+<div id="detailedResults" class="space-y-4 mb-8"></div>
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-900 mb-7"><b>Important:</b> This is an onSET-style practice prototype, not an official onSET score. It is not calibrated to the official onSET item bank or official onSET scoring algorithm. A later Rasch calibration phase will use calibrated item parameters rather than arbitrary percentage bands.</div>
 <button id="restartBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-7 py-3 rounded-xl">NEW TEST</button>
 </div>
 </section>
@@ -123,10 +125,22 @@ function showText(){
  timerId=setInterval(()=>{remaining--;updateTimer();if(remaining<=0){clearInterval(timerId);submitText(true)}},1000);
 }
 function updateTimer(){timer.textContent=String(Math.floor(remaining/60)).padStart(2,"0")+":"+String(remaining%60).padStart(2,"0")}
+function classifyMistake(g,got){
+ const functionWords=new Set(["der","die","das","den","dem","des","ein","eine","einen","einer","einem","eines","und","oder","aber","auch","nur","nicht","kein","keine","keinen","keiner","mit","von","zu","zur","zum","im","in","am","an","auf","aus","bei","für","nach","über","unter","vor","wenn","dass","weil","als","wie","ich","du","er","sie","es","wir","ihr","man"]);
+ if(!got)return "No answer";
+ if(functionWords.has(g.full.toLowerCase())) return "Grammar / function word";
+ if(g.full.length>6)return "Vocabulary / word form";
+ return "Spelling / word completion";
+}
+function makeExplanation(g,got){
+ const full=g.full||((g.prefix||"")+(g.answer||""));
+ if(!got) return `The gap completes the word “${full}”. The fixed part is “${g.prefix}”, so the missing letters are “${g.answer}”.`;
+ return `The gap completes the word “${full}”. The fixed part is “${g.prefix}”, so the required missing letters are “${g.answer}”. Your answer was “${got}”. In a C-Test, the missing letters must reconstruct the original word exactly.`;
+}
 function submitText(auto=false){
  clearInterval(timerId);const t=testTexts[currentIndex],inputs=[...document.querySelectorAll(".gap-input")],gaps=t.parts.filter(p=>p.answer);
- let score=0;const details=gaps.map((g,i)=>{const got=(inputs[i]?.value||"").trim(),ok=got.toLowerCase()===g.answer.toLowerCase();if(ok)score++;return{gap:i+1,user:got,correct:g.answer,ok}});
- textResults.push({id:t.id,level:t.level,title:t.title,score,max:20,details,secondsUsed:SECONDS_PER_TEXT-remaining});
+ let score=0;const details=gaps.map((g,i)=>{const got=(inputs[i]?.value||"").trim(),ok=got.toLowerCase()===g.answer.toLowerCase();if(ok)score++;return{gap:i+1,user:got,correct:g.answer,full:g.full||((g.prefix||"")+(g.answer||"")),prefix:g.prefix||"",ok,category:ok?"Correct":classifyMistake(g,got),explanation:ok?"Correct: your answer reconstructs the missing part of the word.":makeExplanation(g,got)}});
+ textResults.push({id:t.id,level:t.level,title:t.title,score,max:20,details,secondsUsed:SECONDS_PER_TEXT-remaining,autoSubmitted:auto});
  if(currentIndex<testTexts.length-1){currentIndex++;showText()}else finishTest();
 }
 function estimateLevel(rs){
@@ -141,18 +155,26 @@ function estimateLevel(rs){
  // replaced by a real Rasch ability estimate and empirically calibrated cuts.
  return{level:null,by,total,pct,method:"not-yet-calibrated"};
 }
+function escapeHtml(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;");}
 function finishTest(){
  const r=estimateLevel(textResults),elapsed=Math.round((Date.now()-testStart)/1000);
  testScreen.classList.add("hidden");resultsScreen.classList.remove("hidden");
  score.textContent=r.total+"/"+(textResults.length*20);
-estimatedLevel.textContent="Calibration pending";
-totalTime.textContent=Math.floor(elapsed/60)+"m "+elapsed%60+"s";
- levelBreakdown.innerHTML="<h2 class='text-xl font-bold mb-4'>Performance by practice level</h2>"+["A1","A2","B1","B2","C1"].map(l=>"<div class='flex items-center gap-3 mb-3'><div class='w-10 font-bold'>"+l+"</div><div class='flex-1 h-3 bg-slate-100 rounded-full overflow-hidden'><div class='h-full bg-blue-600' style='width:"+Math.round(r.by[l]*100)+"%'></div></div><div class='w-16 text-right'>"+Math.round(r.by[l]*100)+"%</div></div>").join("");
+ estimatedLevel.textContent="Calibration pending";
+ totalTime.textContent=Math.floor(elapsed/60)+"m "+elapsed%60+"s";
+ levelBreakdown.innerHTML="<h2 class='text-xl font-bold mb-4'>Performance by practice level</h2>"+["A1","A2","B1","B2","C1"].map(l=>{const v=r.by[l]??0;return "<div class='flex items-center gap-3 mb-3'><div class='w-10 font-bold'>"+l+"</div><div class='flex-1 h-3 bg-slate-100 rounded-full overflow-hidden'><div class='h-full bg-blue-600' style='width:"+Math.round(v*100)+"%'></div></div><div class='w-16 text-right'>"+Math.round(v*100)+"%</div></div>"}).join("");
+ const wrong=textResults.flatMap(t=>t.details.filter(d=>!d.ok));
+ const correct=r.total, total=r.total+wrong.length;
+ mistakeSummary.innerHTML=`<div class="bg-white border border-slate-200 rounded-2xl p-5"><h2 class="text-xl font-bold mb-2">Detailed answer analysis</h2><p class="text-slate-600">${correct} correct · ${wrong.length} incorrect · ${total} gaps reviewed.</p><p class="text-sm text-slate-500 mt-2">Open each text below to review every gap. Wrong answers include the correct word, missing letters, and an explanation.</p></div>`;
+ detailedResults.innerHTML=textResults.map((t,ti)=>{
+   const wrongCount=t.details.filter(d=>!d.ok).length;
+   return `<details class="bg-white border border-slate-200 rounded-2xl overflow-hidden" ${ti===0?'open':''}><summary class="cursor-pointer p-5 font-bold flex justify-between gap-4"><span>${escapeHtml(t.level)} — ${escapeHtml(t.title)}</span><span class="text-sm font-normal text-slate-500">${t.score}/20 · ${wrongCount} wrong</span></summary><div class="border-t border-slate-100 p-5 space-y-3">${t.details.map(d=>`<div class="rounded-xl p-4 ${d.ok?'bg-green-50':'bg-red-50'}"><div class="flex flex-wrap justify-between gap-2"><b>Gap ${d.gap}: ${d.ok?'Correct':'Incorrect'}</b><span class="text-sm">${d.ok?'✓':'✗'} ${escapeHtml(d.category)}</span></div><div class="mt-2 text-sm"><b>Your answer:</b> ${escapeHtml(d.user||'(blank)')} &nbsp; <b>Correct:</b> ${escapeHtml(d.correct)}</div><div class="mt-1 text-sm"><b>Complete word:</b> ${escapeHtml(d.full)}</div><p class="mt-2 text-sm text-slate-700">${escapeHtml(d.explanation)}</p></div>`).join('')}</div></details>`;
+ }).join("");
  localStorage.setItem("lastCTestPractice",JSON.stringify({
  date:new Date().toISOString(),testId,testDate,mode:singleMode?"single":"daily",
  results:textResults,estimate:r,
- itemBankVersion:"phase2-v1",estimationStatus:"not-yet-calibrated"
-}));
+ itemBankVersion:"phase3a-v1",estimationStatus:"not-yet-calibrated"
+ }));
 }
 startBtn.onclick=()=>startTest(false);singleBtn.onclick=()=>startTest(true);nextBtn.onclick=()=>submitText(false);
 restartBtn.onclick=()=>{resultsScreen.classList.add("hidden");startScreen.classList.remove("hidden")};
