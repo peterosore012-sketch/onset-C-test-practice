@@ -30,6 +30,7 @@ body{background:#f5f7fb}.gap-input{width:5.5rem;border:0;border-bottom:2px solid
 <div class="mt-7 flex flex-wrap justify-center gap-3">
 <button id="mistakeBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-3 rounded-xl">MY MISTAKE BANK</button>
 <button id="practiceMistakesBtn" class="border border-amber-500 text-amber-700 hover:bg-amber-50 font-bold px-6 py-3 rounded-xl">PRACTISE MY MISTAKES</button>
+<button id="dashboardBtn" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-6 py-3 rounded-xl">MY PROGRESS</button>
 </div>
 </div>
 </section>
@@ -79,6 +80,45 @@ body{background:#f5f7fb}.gap-input{width:5.5rem;border:0;border-bottom:2px solid
 </div>
 </section>
 
+<section id="dashboardScreen" class="hidden">
+<div class="bg-white rounded-3xl shadow p-6 md:p-10">
+<div class="text-blue-600 font-bold tracking-wide">LEARNER PROGRESS</div>
+<h1 class="text-3xl md:text-4xl font-extrabold mt-2 mb-3">My Progress Dashboard</h1>
+<p class="text-slate-600 mb-7">Your full-test history is saved on this device. Single-text practice is not included in these assessment statistics.</p>
+
+<div id="dashboardStats" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"></div>
+
+<div class="grid lg:grid-cols-2 gap-6 mb-8">
+  <div class="border rounded-2xl p-5">
+    <h2 class="text-xl font-bold mb-4">Score history</h2>
+    <div id="scoreChart" class="space-y-4"></div>
+    <div id="scoreChartEmpty" class="text-sm text-slate-500">Complete a full test to see your score history.</div>
+  </div>
+  <div class="border rounded-2xl p-5">
+    <h2 class="text-xl font-bold mb-4">Performance by practice level</h2>
+    <div id="dashboardLevels"></div>
+  </div>
+</div>
+
+<div class="border rounded-2xl p-5 mb-8">
+  <h2 class="text-xl font-bold mb-4">Weakness categories</h2>
+  <div id="dashboardErrors"></div>
+</div>
+
+<div class="border rounded-2xl p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <h2 class="text-xl font-bold">Assessment history</h2>
+    <button id="clearHistoryBtn" class="text-red-600 underline text-sm">Clear history</button>
+  </div>
+  <div id="dashboardHistory" class="space-y-3"></div>
+</div>
+
+<div class="flex justify-center mt-8">
+<button id="dashboardBackBtn" class="border border-slate-300 px-7 py-3 rounded-xl font-bold">BACK TO HOME</button>
+</div>
+</div>
+</section>
+
 <section id="resultsScreen" class="hidden">
 <div class="bg-white rounded-3xl shadow p-6 md:p-10">
 <div class="text-blue-600 font-bold tracking-wide">ASSESSMENT RESULT</div>
@@ -103,6 +143,7 @@ const TEST_SIZE=8,GAPS_PER_TEXT=20,SECONDS_PER_TEXT=300;
 let testTexts=[],currentIndex=0,textResults=[],timerId=null,remaining=SECONDS_PER_TEXT,testStart=null,singleMode=false;
 let testId="",testDate="";
 let mistakeItems=[],mistakePracticeIndex=0,mistakePracticeChecked=false;
+const HISTORY_KEY="cTestAssessmentHistoryV1";
 
 function seededRandom(seed){
  let h=0; for(let i=0;i<seed.length;i++) h=(Math.imul(31,h)+seed.charCodeAt(i))|0;
@@ -304,8 +345,74 @@ function nextMistake(){
 function clearMistakeBank(){
   if(confirm("Clear your entire mistake bank? This cannot be undone.")){localStorage.removeItem(MISTAKE_KEY);renderMistakeBank();}
 }
+function loadHistory(){
+ try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||"[]")}catch(e){return []}
+}
+function saveHistory(items){localStorage.setItem(HISTORY_KEY,JSON.stringify(items))}
+function saveAssessmentHistory(r,elapsed){
+ if(singleMode) return;
+ const history=loadHistory();
+ const wrong=textResults.reduce((n,t)=>n+t.details.filter(d=>!d.ok).length,0);
+ const categories={};
+ textResults.forEach(t=>t.details.filter(d=>!d.ok).forEach(d=>{
+   categories[d.category]=(categories[d.category]||0)+1;
+ }));
+ history.push({
+   date:new Date().toISOString(),testDate,testId,total:r.total,
+   max:textResults.length*20,percent:Math.round(r.pct*100),
+   by:r.by,elapsed,wrong,categories,itemBankVersion:"phase3c-v1"
+ });
+ while(history.length>30) history.shift();
+ saveHistory(history);
+}
+function openDashboard(){
+ startScreen.classList.add("hidden");testScreen.classList.add("hidden");resultsScreen.classList.add("hidden");
+ mistakeScreen.classList.add("hidden");mistakePracticeScreen.classList.add("hidden");
+ dashboardScreen.classList.remove("hidden");renderDashboard();
+}
+function renderDashboard(){
+ const h=loadHistory();
+ const full=h;
+ const tests=full.length;
+ const scores=full.map(x=>x.percent);
+ const avg=tests?Math.round(scores.reduce((a,b)=>a+b,0)/tests):0;
+ const best=tests?Math.max(...scores):0;
+ const latest=tests?scores[scores.length-1]:0;
+ dashboardStats.innerHTML=`
+ <div class="bg-slate-50 rounded-2xl p-5"><div class="text-sm text-slate-500">Tests completed</div><div class="text-3xl font-extrabold">${tests}</div></div>
+ <div class="bg-blue-50 rounded-2xl p-5"><div class="text-sm text-slate-500">Latest score</div><div class="text-3xl font-extrabold">${tests?latest+"%":"—"}</div></div>
+ <div class="bg-green-50 rounded-2xl p-5"><div class="text-sm text-slate-500">Best score</div><div class="text-3xl font-extrabold">${tests?best+"%":"—"}</div></div>
+ <div class="bg-purple-50 rounded-2xl p-5"><div class="text-sm text-slate-500">Average score</div><div class="text-3xl font-extrabold">${tests?avg+"%":"—"}</div></div>`;
+
+ const recent=full.slice(-10);
+ scoreChartEmpty.classList.toggle("hidden",recent.length>0);
+ scoreChart.innerHTML=recent.map((x,i)=>{
+   const label=new Date(x.date).toLocaleDateString();
+   const width=Math.max(2,x.percent);
+   return `<div><div class="flex justify-between text-sm mb-1"><span>${escapeHtml(label)}</span><b>${x.total}/${x.max} · ${x.percent}%</b></div><div class="h-4 bg-slate-100 rounded-full overflow-hidden"><div class="h-4 bg-blue-500 rounded-full" style="width:${width}%"></div></div></div>`;
+ }).join("");
+
+ const levels=["A1","A2","B1","B2","C1"];
+ dashboardLevels.innerHTML=levels.map(l=>{
+   const vals=full.map(x=>x.by?.[l]).filter(v=>typeof v==="number");
+   const pct=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*100):0;
+   return `<div class="mb-4"><div class="flex justify-between text-sm mb-1"><b>${l}</b><span>${vals.length?pct+"%":"—"}</span></div><div class="h-3 bg-slate-100 rounded-full overflow-hidden"><div class="h-3 bg-slate-700 rounded-full" style="width:${pct}%"></div></div></div>`;
+ }).join("");
+
+ const cats={};
+ full.forEach(x=>Object.entries(x.categories||{}).forEach(([k,v])=>cats[k]=(cats[k]||0)+v));
+ const catEntries=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
+ dashboardErrors.innerHTML=catEntries.length?catEntries.map(([k,v])=>`<div class="flex items-center justify-between border-b py-3"><span>${escapeHtml(k)}</span><b>${v} wrong answers</b></div>`).join(""):'<div class="text-slate-500">No error data yet.</div>';
+
+ dashboardHistory.innerHTML=full.length?full.slice().reverse().map((x,i)=>{
+   const d=new Date(x.date);
+   const time=Math.floor((x.elapsed||0)/60)+"m "+((x.elapsed||0)%60)+"s";
+   return `<div class="border rounded-xl p-4 flex flex-wrap items-center justify-between gap-3"><div><b>${escapeHtml(d.toLocaleDateString())}</b><div class="text-sm text-slate-500">${escapeHtml(x.testId)} · ${time}</div></div><div class="text-right"><b class="text-lg">${x.total}/${x.max}</b><div class="text-sm text-slate-500">${x.percent}% · ${x.wrong} wrong</div></div></div>`;
+ }).join(""):'<div class="text-slate-500">No full-test history yet.</div>';
+}
 function finishTest(){
  const r=estimateLevel(textResults),elapsed=Math.round((Date.now()-testStart)/1000);
+ saveAssessmentHistory(r,elapsed);
  testScreen.classList.add("hidden");resultsScreen.classList.remove("hidden");
  score.textContent=r.total+"/"+(textResults.length*20);
  estimatedLevel.textContent="Calibration pending";
@@ -322,11 +429,11 @@ function finishTest(){
  localStorage.setItem("lastCTestPractice",JSON.stringify({
  date:new Date().toISOString(),testId,testDate,mode:singleMode?"single":"daily",
  results:textResults,estimate:r,
- itemBankVersion:"phase3b-v1",estimationStatus:"not-yet-calibrated"
+ itemBankVersion:"phase3c-v1",estimationStatus:"not-yet-calibrated"
  }));
 }
 startBtn.onclick=()=>startTest(false);singleBtn.onclick=()=>startTest(true);nextBtn.onclick=()=>submitText(false);
-restartBtn.onclick=()=>{resultsScreen.classList.add("hidden");startScreen.classList.remove("hidden")};
+restartBtn.onclick=()=>{resultsScreen.classList.add("hidden");dashboardScreen.classList.add("hidden");startScreen.classList.remove("hidden")};
 mistakeBtn.onclick=openMistakeBank;
 practiceMistakesBtn.onclick=startMistakePractice;
 mistakeBackBtn.onclick=()=>{mistakeScreen.classList.add("hidden");startScreen.classList.remove("hidden")};
@@ -334,5 +441,8 @@ mistakePracticeBackBtn.onclick=()=>{mistakePracticeScreen.classList.add("hidden"
 mistakeCheckBtn.onclick=checkMistakeAnswer;
 mistakeNextBtn.onclick=nextMistake;
 clearMistakesBtn.onclick=clearMistakeBank;
+dashboardBtn.onclick=openDashboard;
+dashboardBackBtn.onclick=()=>{dashboardScreen.classList.add("hidden");startScreen.classList.remove("hidden")};
+clearHistoryBtn.onclick=()=>{if(confirm("Clear all assessment history? This does not clear your mistake bank.")){localStorage.removeItem(HISTORY_KEY);renderDashboard();}};
 </script>
 </body></html>
