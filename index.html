@@ -500,6 +500,7 @@ function renderDashboard(){
  }).join(""):'<div class="text-slate-500">No full-test history yet.</div>';
 }
   async function saveResultToSupabase(r, elapsed){
+    console.log("SAVE RESULT FUNCTION STARTED");
   const { data: { user } } = await supabase.auth.getUser();
 
   if(!user){
