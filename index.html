@@ -502,9 +502,8 @@ function renderDashboard(){
   async function saveResultToSupabase(r, elapsed){
     console.log("SAVE RESULT FUNCTION STARTED");
     console.log("BEFORE GET USER");
-    const const result = await supabase.auth.getUser();
-console.log("GET USER RESULT:", result);
-const user = result.data.user;
+    co
+const { data: { user } } = await supabase.auth.getUser();
 console.log("LOGGED IN USER:", user);
 
   if(!user){
