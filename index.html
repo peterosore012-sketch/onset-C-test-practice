@@ -27,6 +27,10 @@ body{background:#f5f7fb}.gap-input{width:5.5rem;border:0;border-bottom:2px solid
 <p class="text-xs text-slate-400 mb-7">Full tests use a date-based balanced set; the set changes automatically on the next day.</p>
 <button id="startBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-10 py-4 rounded-xl text-lg">START FULL TEST</button>
 <div class="mt-5"><button id="singleBtn" class="text-blue-600 underline">Practice one text only</button></div>
+<div class="mt-7 flex flex-wrap justify-center gap-3">
+<button id="mistakeBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-3 rounded-xl">MY MISTAKE BANK</button>
+<button id="practiceMistakesBtn" class="border border-amber-500 text-amber-700 hover:bg-amber-50 font-bold px-6 py-3 rounded-xl">PRACTISE MY MISTAKES</button>
+</div>
 </div>
 </section>
 
@@ -44,6 +48,35 @@ body{background:#f5f7fb}.gap-input{width:5.5rem;border:0;border-bottom:2px solid
 <div id="passage" class="passage"></div>
 <div class="flex justify-end mt-8"><button id="nextBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-7 py-3 rounded-xl">SUBMIT TEXT</button></div>
 </main>
+</section>
+
+<section id="mistakeScreen" class="hidden">
+<div class="bg-white rounded-3xl shadow p-6 md:p-10">
+<div class="text-amber-600 font-bold tracking-wide">PERSONAL MISTAKE BANK</div>
+<h1 class="text-3xl md:text-4xl font-extrabold mt-2 mb-4">My German C-Test Mistakes</h1>
+<p class="text-slate-600 mb-6">Wrong answers from your completed practice tests are saved on this device. Use the bank to review patterns and practise missed gaps again.</p>
+<div id="mistakeStats" class="grid md:grid-cols-3 gap-4 mb-7"></div>
+<div id="mistakeList" class="space-y-3 mb-8"></div>
+<div class="flex flex-wrap gap-3">
+<button id="mistakeBackBtn" class="border border-slate-300 px-6 py-3 rounded-xl font-bold">BACK</button>
+<button id="clearMistakesBtn" class="border border-red-300 text-red-700 px-6 py-3 rounded-xl font-bold">CLEAR MISTAKE BANK</button>
+</div>
+</div>
+</section>
+
+<section id="mistakePracticeScreen" class="hidden">
+<div class="bg-white rounded-3xl shadow p-6 md:p-10">
+<div class="text-amber-600 font-bold tracking-wide">MISTAKE PRACTICE</div>
+<h1 class="text-3xl md:text-4xl font-extrabold mt-2 mb-3">Practise My Mistakes</h1>
+<div id="mistakePracticeProgress" class="text-sm text-slate-500 mb-6"></div>
+<div id="mistakePracticeCard"></div>
+<div class="flex flex-wrap gap-3 mt-7">
+<button id="mistakeCheckBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-7 py-3 rounded-xl">CHECK ANSWER</button>
+<button id="mistakeNextBtn" class="border border-slate-300 px-7 py-3 rounded-xl font-bold hidden">NEXT MISTAKE</button>
+<button id="mistakePracticeBackBtn" class="border border-slate-300 px-7 py-3 rounded-xl font-bold">EXIT</button>
+</div>
+<div id="mistakePracticeFeedback" class="mt-5"></div>
+</div>
 </section>
 
 <section id="resultsScreen" class="hidden">
@@ -69,6 +102,7 @@ const TEXT_BANK = [{"id": 1, "level": "A1", "title": "Mein Morgen – im Alltag"
 const TEST_SIZE=8,GAPS_PER_TEXT=20,SECONDS_PER_TEXT=300;
 let testTexts=[],currentIndex=0,textResults=[],timerId=null,remaining=SECONDS_PER_TEXT,testStart=null,singleMode=false;
 let testId="",testDate="";
+let mistakeItems=[],mistakePracticeIndex=0,mistakePracticeChecked=false;
 
 function seededRandom(seed){
  let h=0; for(let i=0;i<seed.length;i++) h=(Math.imul(31,h)+seed.charCodeAt(i))|0;
@@ -156,6 +190,120 @@ function estimateLevel(rs){
  return{level:null,by,total,pct,method:"not-yet-calibrated"};
 }
 function escapeHtml(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;");}
+
+const MISTAKE_KEY="cTestMistakeBankV1";
+
+function loadMistakes(){
+  try{return JSON.parse(localStorage.getItem(MISTAKE_KEY)||"[]")}catch(e){return []}
+}
+function saveMistakes(items){localStorage.setItem(MISTAKE_KEY,JSON.stringify(items))}
+function mistakeKey(d){return [d.full,d.correct,d.prefix].join("|").toLowerCase()}
+function addMistakesFromResults(){
+  const bank=loadMistakes(), now=new Date().toISOString();
+  textResults.forEach(t=>t.details.filter(d=>!d.ok).forEach(d=>{
+    const key=mistakeKey(d), existing=bank.find(x=>x.key===key);
+    if(existing){
+      existing.attempts=(existing.attempts||0)+1;
+      existing.lastSeen=now;
+      existing.lastUser=d.user||"";
+      existing.category=d.category;
+      existing.explanation=d.explanation;
+      if(d.ok) existing.successes=(existing.successes||0)+1;
+    }else{
+      bank.push({
+        key,full:d.full,prefix:d.prefix,correct:d.correct,category:d.category,
+        explanation:d.explanation,lastUser:d.user||"",attempts:1,successes:0,
+        mastered:false,createdAt:now,lastSeen:now,level:t.level,title:t.title
+      });
+    }
+  }));
+  saveMistakes(bank);
+}
+function renderMistakeBank(){
+  const bank=loadMistakes();
+  const active=bank.filter(x=>!x.mastered), mastered=bank.filter(x=>x.mastered);
+  mistakeStats.innerHTML=`
+    <div class="bg-slate-50 rounded-2xl p-5"><div class="text-sm text-slate-500">Total mistakes</div><div class="text-3xl font-extrabold">${bank.length}</div></div>
+    <div class="bg-amber-50 rounded-2xl p-5"><div class="text-sm text-slate-500">To practise</div><div class="text-3xl font-extrabold">${active.length}</div></div>
+    <div class="bg-green-50 rounded-2xl p-5"><div class="text-sm text-slate-500">Mastered</div><div class="text-3xl font-extrabold">${mastered.length}</div></div>`;
+  if(!bank.length){
+    mistakeList.innerHTML='<div class="border border-dashed border-slate-300 rounded-2xl p-8 text-center text-slate-500">No mistakes saved yet. Complete a test and submit some incorrect answers.</div>';
+    return;
+  }
+  mistakeList.innerHTML=bank.map((x,i)=>`
+    <details class="border rounded-2xl p-4 ${x.mastered?'bg-green-50 border-green-200':'bg-amber-50 border-amber-200'}">
+      <summary class="cursor-pointer font-bold flex flex-wrap justify-between gap-2">
+        <span>${escapeHtml(x.level)} · ${escapeHtml(x.full)}</span>
+        <span class="text-sm font-normal">${x.mastered?'✓ Mastered':'Needs practice'}</span>
+      </summary>
+      <div class="mt-3 text-sm space-y-2">
+        <div><b>Fixed part:</b> ${escapeHtml(x.prefix)} · <b>Missing:</b> ${escapeHtml(x.correct)}</div>
+        <div><b>Last answer:</b> ${escapeHtml(x.lastUser||"(blank)")}</div>
+        <div><b>Category:</b> ${escapeHtml(x.category)}</div>
+        <div><b>Attempts:</b> ${x.attempts||0} · <b>Successful practice:</b> ${x.successes||0}</div>
+        <p>${escapeHtml(x.explanation)}</p>
+        <button class="text-blue-700 underline" onclick="toggleMistakeMaster(${i})">${x.mastered?'Mark for practice again':'Mark as mastered'}</button>
+      </div>
+    </details>`).join("");
+}
+function toggleMistakeMaster(i){
+  const bank=loadMistakes();
+  if(!bank[i]) return;
+  bank[i].mastered=!bank[i].mastered;
+  saveMistakes(bank);renderMistakeBank();
+}
+function openMistakeBank(){
+  startScreen.classList.add("hidden");testScreen.classList.add("hidden");resultsScreen.classList.add("hidden");mistakePracticeScreen.classList.add("hidden");
+  mistakeScreen.classList.remove("hidden");renderMistakeBank();
+}
+function startMistakePractice(){
+  const bank=loadMistakes().filter(x=>!x.mastered);
+  if(!bank.length){
+    alert("Your mistake bank has no active mistakes yet. Complete a test with some wrong answers first.");
+    return;
+  }
+  mistakeItems=bank;mistakePracticeIndex=0;mistakePracticeChecked=false;
+  startScreen.classList.add("hidden");mistakeScreen.classList.add("hidden");mistakePracticeScreen.classList.remove("hidden");
+  renderMistakePractice();
+}
+function renderMistakePractice(){
+  const x=mistakeItems[mistakePracticeIndex];
+  mistakePracticeProgress.textContent=`Mistake ${mistakePracticeIndex+1} of ${mistakeItems.length} · ${x.level} · ${x.title}`;
+  mistakePracticeCard.innerHTML=`
+    <div class="bg-slate-50 rounded-2xl p-6">
+      <div class="text-sm text-slate-500 mb-3">Complete the word</div>
+      <div class="text-2xl md:text-3xl font-extrabold mb-5">${escapeHtml(x.prefix)}<input id="mistakeAnswerInput" class="gap-input" maxlength="${Math.max(1,x.correct.length)}" autocomplete="off" spellcheck="false"> <span class="text-slate-500">${escapeHtml(x.full.slice(x.prefix.length))}</span></div>
+      <p class="text-sm text-slate-500">Enter only the missing letters.</p>
+    </div>`;
+  mistakePracticeFeedback.innerHTML="";
+  mistakeCheckBtn.classList.remove("hidden");mistakeNextBtn.classList.add("hidden");mistakePracticeChecked=false;
+}
+function checkMistakeAnswer(){
+  if(mistakePracticeChecked)return;
+  const x=mistakeItems[mistakePracticeIndex], inp=document.getElementById("mistakeAnswerInput");
+  const got=(inp?.value||"").trim(),ok=got.toLowerCase()===x.correct.toLowerCase();
+  mistakePracticeChecked=true;
+  const bank=loadMistakes(), item=bank.find(b=>b.key===x.key);
+  if(item){item.attempts=(item.attempts||0)+1;if(ok){item.successes=(item.successes||0)+1;item.mastered=true;}}
+  saveMistakes(bank);
+  mistakePracticeFeedback.innerHTML=ok
+    ? `<div class="bg-green-50 border border-green-200 rounded-2xl p-5"><b>Correct! ✓</b><p class="mt-2">You reconstructed “${escapeHtml(x.full)}” correctly. This mistake is now marked as mastered.</p></div>`
+    : `<div class="bg-red-50 border border-red-200 rounded-2xl p-5"><b>Not yet.</b><p class="mt-2"><b>Correct missing letters:</b> ${escapeHtml(x.correct)}</p><p class="mt-1">${escapeHtml(x.explanation)}</p></div>`;
+  mistakeCheckBtn.classList.add("hidden");
+  mistakeNextBtn.classList.remove("hidden");
+}
+function nextMistake(){
+  mistakePracticeIndex++;
+  if(mistakePracticeIndex>=mistakeItems.length){
+    const remaining=loadMistakes().filter(x=>!x.mastered).length;
+    mistakePracticeCard.innerHTML=`<div class="bg-green-50 border border-green-200 rounded-2xl p-6 text-center"><h2 class="text-2xl font-bold">Practice session complete</h2><p class="mt-2 text-slate-600">${remaining} active mistake${remaining===1?'':'s'} remain in your bank.</p></div>`;
+    mistakePracticeFeedback.innerHTML="";
+    mistakeCheckBtn.classList.add("hidden");mistakeNextBtn.classList.add("hidden");
+  }else renderMistakePractice();
+}
+function clearMistakeBank(){
+  if(confirm("Clear your entire mistake bank? This cannot be undone.")){localStorage.removeItem(MISTAKE_KEY);renderMistakeBank();}
+}
 function finishTest(){
  const r=estimateLevel(textResults),elapsed=Math.round((Date.now()-testStart)/1000);
  testScreen.classList.add("hidden");resultsScreen.classList.remove("hidden");
@@ -164,6 +312,7 @@ function finishTest(){
  totalTime.textContent=Math.floor(elapsed/60)+"m "+elapsed%60+"s";
  levelBreakdown.innerHTML="<h2 class='text-xl font-bold mb-4'>Performance by practice level</h2>"+["A1","A2","B1","B2","C1"].map(l=>{const v=r.by[l]??0;return "<div class='flex items-center gap-3 mb-3'><div class='w-10 font-bold'>"+l+"</div><div class='flex-1 h-3 bg-slate-100 rounded-full overflow-hidden'><div class='h-full bg-blue-600' style='width:"+Math.round(v*100)+"%'></div></div><div class='w-16 text-right'>"+Math.round(v*100)+"%</div></div>"}).join("");
  const wrong=textResults.flatMap(t=>t.details.filter(d=>!d.ok));
+ addMistakesFromResults();
  const correct=r.total, total=r.total+wrong.length;
  mistakeSummary.innerHTML=`<div class="bg-white border border-slate-200 rounded-2xl p-5"><h2 class="text-xl font-bold mb-2">Detailed answer analysis</h2><p class="text-slate-600">${correct} correct · ${wrong.length} incorrect · ${total} gaps reviewed.</p><p class="text-sm text-slate-500 mt-2">Open each text below to review every gap. Wrong answers include the correct word, missing letters, and an explanation.</p></div>`;
  detailedResults.innerHTML=textResults.map((t,ti)=>{
@@ -173,10 +322,17 @@ function finishTest(){
  localStorage.setItem("lastCTestPractice",JSON.stringify({
  date:new Date().toISOString(),testId,testDate,mode:singleMode?"single":"daily",
  results:textResults,estimate:r,
- itemBankVersion:"phase3a-v1",estimationStatus:"not-yet-calibrated"
+ itemBankVersion:"phase3b-v1",estimationStatus:"not-yet-calibrated"
  }));
 }
 startBtn.onclick=()=>startTest(false);singleBtn.onclick=()=>startTest(true);nextBtn.onclick=()=>submitText(false);
 restartBtn.onclick=()=>{resultsScreen.classList.add("hidden");startScreen.classList.remove("hidden")};
+mistakeBtn.onclick=openMistakeBank;
+practiceMistakesBtn.onclick=startMistakePractice;
+mistakeBackBtn.onclick=()=>{mistakeScreen.classList.add("hidden");startScreen.classList.remove("hidden")};
+mistakePracticeBackBtn.onclick=()=>{mistakePracticeScreen.classList.add("hidden");startScreen.classList.remove("hidden")};
+mistakeCheckBtn.onclick=checkMistakeAnswer;
+mistakeNextBtn.onclick=nextMistake;
+clearMistakesBtn.onclick=clearMistakeBank;
 </script>
 </body></html>
