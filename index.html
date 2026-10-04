@@ -500,15 +500,15 @@ function renderDashboard(){
  }).join(""):'<div class="text-slate-500">No full-test history yet.</div>';
 }
   async function saveResultToSupabase(r, elapsed){
-  console.log("SAVE RESULT FUNCTION STARTED");
-
-  const { data: { user } } = await supabase.auth.getUser();
-  console.log("LOGGED IN USER:", user);
+    console.log("SAVE RESULT FUNCTION STARTED");
+    const { data: { user } } = await supabase.auth.getUser();
+console.log("LOGGED IN USER:", user);
 
   if(!user){
     console.log("No logged-in user. Result not saved.");
     return;
   }
+
   const wrong = textResults.reduce(
     (n,t) => n + t.details.filter(d => !d.ok).length,
     0
