@@ -515,20 +515,25 @@ console.log("LOGGED IN USER:", user);
   );
 
   const { error } = await supabase
-    .from("test_results")
-    .insert({
-      user_id: user.id,
-      admission_number: localStorage.getItem("admissionNumber") || "",
-      test_date: testDate,
-      test_id: testId,
-      raw_score: r.total,
-      max_score: textResults.length * 20,
-      percentage: Math.round(r.pct * 100),
-      level: r.level,
-      time_seconds: elapsed,
-      wrong_answers: wrong
-    });
+  .from("test_results")
+  .insert({
+    user_id: user.id,
+    admission_number: localStorage.getItem("admissionNumber") || "",
+    test_date: testDate,
+    test_id: testId,
+    raw_score: r.total,
+    max_score: textResults.length * 20,
+    percentage: Math.round(r.pct * 100),
+    level: r.level,
+    time_seconds: elapsed,
+    wrong_answers: wrong
+  });
 
+if (error) {
+  console.error("RESULT SAVE ERROR:", error);
+} else {
+  console.log("RESULT SAVED SUCCESSFULLY!");
+}
   if(error){
     console.error("Could not save result:", error);
   }else{
